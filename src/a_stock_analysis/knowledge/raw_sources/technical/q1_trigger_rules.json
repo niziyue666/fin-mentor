@@ -1,0 +1,163 @@
+{
+  "_meta": {
+    "module": "Q1",
+    "description": "Q1市场技术分析的数据驱动检索映射表。Tool拿到实时数据后，遍历triggers数组，满足condition的规则全部触发，将对应section传入Markdown知识库检索。",
+    "knowledge_file": "knowledge/raw_sources/technical/q1_market_knowledge.md",
+    "usage": "用 Python eval() 执行condition，data字典需包含：price, ma5, ma20, rsi, volume_ratio, daily_change",
+    "version": "1.0"
+  },
+
+  "data_schema": {
+    "price":         { "type": "float", "desc": "当前价格",               "example": 18.47 },
+    "ma5":           { "type": "float", "desc": "5日均线",                "example": 19.78 },
+    "ma20":          { "type": "float", "desc": "20日均线",               "example": 20.38 },
+    "rsi":           { "type": "float", "desc": "RSI指标，0-100",         "example": 31.1  },
+    "volume_ratio":  { "type": "float", "desc": "量比，今日/5日均量",     "example": 1.05  },
+    "daily_change":  { "type": "float", "desc": "当日涨跌幅，小数形式",   "example": -0.07 }
+  },
+
+  "triggers": [
+
+    {
+      "id": "T01",
+      "name": "空头排列与死叉",
+      "condition": "ma5 < ma20",
+      "section": "§1 空头排列与死叉",
+      "priority": "high",
+      "note": "MA5跌破MA20，下跌趋势信号，需重点分析"
+    },
+
+    {
+      "id": "T02",
+      "name": "强势整理形态",
+      "condition": "ma5 > ma20 and price < ma5",
+      "section": "§2 强势整理形态",
+      "priority": "medium",
+      "note": "均线多头但价格回落至MA5下方，需区分整理与转弱"
+    },
+
+    {
+      "id": "T03",
+      "name": "多头排列趋势跟踪",
+      "condition": "ma5 > ma20 and price >= ma5",
+      "section": "§3 多头排列趋势跟踪",
+      "priority": "medium",
+      "note": "标准多头排列，需结合量能判断强弱"
+    },
+
+    {
+      "id": "T04",
+      "name": "RSI超卖确认",
+      "condition": "rsi < 30",
+      "section": "§4 RSI超卖区判断",
+      "priority": "high",
+      "note": "RSI进入超卖区，关注底背离和确认信号，不要直接建议买入"
+    },
+
+    {
+      "id": "T05",
+      "name": "RSI超买预警",
+      "condition": "rsi > 70",
+      "section": "§5 RSI超买区判断",
+      "priority": "high",
+      "note": "RSI进入超买区，关注量价背离和顶背离信号"
+    },
+
+    {
+      "id": "T06",
+      "name": "RSI接近超卖但未确认",
+      "condition": "rsi >= 28 and rsi < 35",
+      "section": "§6 RSI接近超卖但未确认",
+      "priority": "medium",
+      "note": "危险的假底区间，初学者最容易误判抄底的位置，需特别提示"
+    },
+
+    {
+      "id": "T07",
+      "name": "放量异常",
+      "condition": "volume_ratio > 2.0",
+      "section": "§7 放量异常识别",
+      "priority": "high",
+      "note": "成交量是平时2倍以上，需结合涨跌方向判断性质"
+    },
+
+    {
+      "id": "T08",
+      "name": "严重缩量",
+      "condition": "volume_ratio < 0.5",
+      "section": "§8 严重缩量风险",
+      "priority": "medium",
+      "note": "成交量不足平时一半，流动性风险提示"
+    },
+
+    {
+      "id": "T09",
+      "name": "阴跌缩量",
+      "condition": "volume_ratio >= 0.8 and volume_ratio <= 1.2 and ma5 < ma20",
+      "section": "§9 阴跌缩量形态",
+      "priority": "medium",
+      "note": "量能正常但处于空头趋势，典型阴跌特征，需与暴跌区分"
+    },
+
+    {
+      "id": "T10",
+      "name": "单日大跌异常",
+      "condition": "daily_change < -0.05",
+      "section": "§10 单日大跌处理规则",
+      "priority": "critical",
+      "note": "触发此条件时，必须在报告最开头输出强制警告，提示先查公告再看技术面"
+    },
+
+    {
+      "id": "T11",
+      "name": "单日大涨异常",
+      "condition": "daily_change > 0.05",
+      "section": "§11 单日大涨处理规则",
+      "priority": "critical",
+      "note": "触发此条件时，必须在报告最开头输出强制警告，提示追高风险"
+    }
+
+  ],
+
+  "priority_rules": {
+    "critical": "必须在报告最开头输出警告，然后再进行常规技术分析",
+    "high":     "优先检索，在分析对应指标时必须引用知识库内容",
+    "medium":   "按需检索，丰富分析深度，无需强制引用"
+  },
+
+  "conflict_rules": [
+    {
+      "conflict": "T04（RSI<30超卖）与 T01（MA5<MA20死叉）同时触发",
+      "handling": "两个章节都检索，在分析中明确说明：均线看空但RSI接近超卖，两个信号方向矛盾，建议等待其中一个明确再行动"
+    },
+    {
+      "conflict": "T06（RSI接近超卖）与 T02（强势整理）同时触发",
+      "handling": "优先触发T06的警示逻辑，在分析中说明：虽然均线结构偏多，但RSI进入危险区间，需谨慎"
+    },
+    {
+      "conflict": "T10或T11（异常波动）与任何其他规则同时触发",
+      "handling": "T10/T11的critical警告必须最先输出，其他规则的技术分析标注'仅供参考，异常波动日技术信号可靠性下降'"
+    }
+  ],
+
+  "default_fallback": {
+    "condition": "无任何触发条件命中",
+    "handling": "检索§3（多头排列趋势跟踪）作为默认基础分析框架",
+    "note": "正常市场状态下MA5>MA20且量比适中，走默认多头分析路径"
+  },
+
+  "examples": [
+    {
+      "scenario": "常山北明案例（你对话中出现过的）",
+      "data": { "price": 18.47, "ma5": 19.78, "ma20": 20.38, "rsi": 31.1, "volume_ratio": 1.0, "daily_change": -0.0728 },
+      "triggered": ["T10（critical，先输出大跌警告）", "T01（MA5<MA20死叉）", "T06（RSI接近超卖未确认）"],
+      "not_triggered": ["T04（RSI=31.1未满足<30）"]
+    },
+    {
+      "scenario": "贵州茅台案例（多头整理）",
+      "data": { "price": 1445.0, "ma5": 1462.37, "ma20": 1437.49, "rsi": 51.2, "volume_ratio": 1.0, "daily_change": -0.008 },
+      "triggered": ["T02（MA5>MA20但price<MA5，强势整理）"],
+      "not_triggered": ["T01", "T04", "T05", "T06", "T07", "T08", "T10", "T11"]
+    }
+  ]
+}

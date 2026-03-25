@@ -1,0 +1,22 @@
+# A股分析系统依赖
+
+# 核心依赖
+crewai>=0.28.0
+tushare>=1.4.0
+pandas>=2.0.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# LangChain 知识库依赖
+langchain>=0.1.0
+langchain-community>=0.0.0
+
+# Streamlit Web界面
+streamlit>=1.30.0
+
+# LiteLLM (用于调用第三方模型)
+litellm>=1.0.0
+
+# 可视化
+plotly>=5.0.0
+akshare>=1.12.0

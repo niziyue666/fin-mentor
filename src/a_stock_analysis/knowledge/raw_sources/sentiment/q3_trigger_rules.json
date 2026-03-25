@@ -1,0 +1,250 @@
+{
+  "_meta": {
+    "module": "Q3",
+    "description": "Q3博弈与情绪分析的数据驱动检索映射表。Agent完成新闻去重和情绪打标后，遍历triggers数组，满足condition的规则全部触发，将对应section传入Markdown知识库检索。",
+    "knowledge_file": "knowledge/raw_sources/sentiment/q3_sentiment_knowledge.md",
+    "usage": "用Python eval()执行condition，data字典需包含以下字段（见data_schema）",
+    "version": "1.0"
+  },
+
+  "data_schema": {
+    "sentiment_score":       { "type": "float", "desc": "综合情绪分，-100到100",           "example": -68.0 },
+    "sentiment_structure":   { "type": "str",   "desc": "情绪结构类型",                    "example": "黑天鹅型",
+                               "enum": ["黑天鹅型", "趋势型", "博弈型", "钝化型", "无明显信号"] },
+    "has_regulatory_news":   { "type": "bool",  "desc": "是否含监管介入/高管被查新闻",     "example": true },
+    "has_policy_news":       { "type": "bool",  "desc": "是否含行业政策/监管变化新闻",     "example": false },
+    "has_earnings_news":     { "type": "bool",  "desc": "是否含业绩/财报相关新闻",         "example": false },
+    "retained_news_count":   { "type": "int",   "desc": "去重后保留的有效新闻数量",        "example": 7 },
+    "raw_news_count":        { "type": "int",   "desc": "去重前原始新闻数量",              "example": 10 },
+    "negative_days":         { "type": "int",   "desc": "负面情绪持续天数",               "example": 4 },
+    "market_breadth":        { "type": "float", "desc": "市场广度，上涨股数/总股数，0-1", "example": 0.45 },
+    "days_since_event":      { "type": "int",   "desc": "黑天鹅事件发生距今天数",         "example": 1 }
+  },
+
+  "triggers": [
+
+    {
+      "id": "T01",
+      "name": "黑天鹅事件",
+      "condition": "has_regulatory_news or sentiment_structure == '黑天鹅型'",
+      "section": "§1 黑天鹅事件处理框架",
+      "priority": "critical",
+      "note": "触发时必须在报告最开头输出强制警告，说明技术分析可靠性降低，建议先查公告"
+    },
+
+    {
+      "id": "T02",
+      "name": "趋势型利空",
+      "condition": "sentiment_structure == '趋势型'",
+      "section": "§2 趋势型利空分析",
+      "priority": "high",
+      "note": "多条利空持续累积，需说明趋势型利空与黑天鹅的区别，不要建议抄底"
+    },
+
+    {
+      "id": "T03",
+      "name": "博弈型情绪",
+      "condition": "sentiment_structure == '博弈型'",
+      "section": "§3 博弈型情绪分析",
+      "priority": "high",
+      "note": "多空分歧明显，方向不确定，建议轻仓或观望等方向确认"
+    },
+
+    {
+      "id": "T04",
+      "name": "情绪钝化",
+      "condition": "sentiment_structure == '钝化型' or negative_days >= 3",
+      "section": "§4 情绪钝化与见底信号",
+      "priority": "medium",
+      "note": "负面情绪发酵超3天，市场开始消化，说明见底信号识别方法"
+    },
+
+    {
+      "id": "T05",
+      "name": "信息真空期",
+      "condition": "retained_news_count < 3",
+      "section": "§5 信息真空期判断",
+      "priority": "high",
+      "note": "有效新闻不足3条，情绪分析可信度低，必须在报告中注明样本不足"
+    },
+
+    {
+      "id": "T06",
+      "name": "重复新闻泛滥",
+      "condition": "raw_news_count > 0 and (raw_news_count - retained_news_count) / raw_news_count > 0.60",
+      "section": "§6 重复新闻泛滥的处理",
+      "priority": "medium",
+      "note": "去重率超60%，真正独立信息来源少，情绪判断需降权，在报告中说明去重情况"
+    },
+
+    {
+      "id": "T07",
+      "name": "极度悲观情绪",
+      "condition": "sentiment_score < -60",
+      "section": "§7 极度悲观情绪下的反向思考",
+      "priority": "medium",
+      "note": "情绪极度悲观可能是反向信号，但需结合基本面判断，不能直接建议买入"
+    },
+
+    {
+      "id": "T08",
+      "name": "极度乐观情绪",
+      "condition": "sentiment_score > 60",
+      "section": "§8 极度乐观情绪下的风险识别",
+      "priority": "medium",
+      "note": "情绪极度乐观时追高风险高，提示止盈而非追入"
+    },
+
+    {
+      "id": "T09",
+      "name": "政策类新闻",
+      "condition": "has_policy_news",
+      "section": "§9 政策类新闻的影响判断",
+      "priority": "high",
+      "note": "需区分方向性政策（影响长期逻辑）和执行性政策（影响短期节奏）"
+    },
+
+    {
+      "id": "T10",
+      "name": "业绩类新闻",
+      "condition": "has_earnings_news",
+      "section": "§10 业绩类新闻的解读方法",
+      "priority": "high",
+      "note": "重点解释超预期vs符合预期的区别，避免初学者只看绝对数字"
+    },
+
+    {
+      "id": "T11",
+      "name": "大盘恐慌",
+      "condition": "market_breadth < 0.30",
+      "section": "§11 大盘恐慌时的个股分析",
+      "priority": "high",
+      "note": "系统性下跌时个股技术面意义有限，需先判断大盘企稳信号"
+    },
+
+    {
+      "id": "T12",
+      "name": "大盘亢奋",
+      "condition": "market_breadth > 0.70",
+      "section": "§12 大盘亢奋时的风险识别",
+      "priority": "medium",
+      "note": "普涨行情中估值泡沫风险累积，提示不追高和分批止盈"
+    }
+
+  ],
+
+  "priority_rules": {
+    "critical": "必须在报告最开头输出警告，改变后续分析的基调",
+    "high":     "优先检索，分析对应情绪信号时必须引用知识库内容",
+    "medium":   "按需检索，丰富分析深度，无强制要求"
+  },
+
+  "conflict_rules": [
+    {
+      "conflict": "T01（黑天鹅）与T04（情绪钝化）同时触发",
+      "handling": "T01优先。黑天鹅事件发生超过3天后可能触发钝化条件，但黑天鹅的警告仍需保留，同时补充说明市场正在逐步消化该事件"
+    },
+    {
+      "conflict": "T05（信息真空）与T07（极度悲观）同时触发",
+      "handling": "T05降权T07的结论。样本极少时情绪分可信度低，极度悲观的判断需注明'基于有限样本，仅供参考'"
+    },
+    {
+      "conflict": "T07（极度悲观）与T02（趋势型利空）同时触发",
+      "handling": "两个章节都检索。需在报告中说明：趋势型利空背景下的极度悲观不一定是反转信号，利空趋势消除才是关键"
+    },
+    {
+      "conflict": "T11（大盘恐慌）与T01（黑天鹅）同时触发",
+      "handling": "两个章节都检索，分别说明个股层面的黑天鹅风险和大盘系统性风险，两重利空叠加需更加谨慎"
+    },
+    {
+      "conflict": "T03（博弈型）与T08（极度乐观）同时触发",
+      "handling": "T08优先，情绪分超60说明正面情绪已占优，博弈局面已有倾向，注意追高风险"
+    }
+  ],
+
+  "forced_output_rules": [
+    {
+      "trigger": "T01",
+      "forced_text": "⚠️ 检测到重大突发事件（监管介入/高管被查），当前技术面分析参考价值降低。建议优先关注后续官方公告，在事件明朗之前保持观望。"
+    },
+    {
+      "trigger": "T05",
+      "forced_text": "⚠️ 当前有效新闻样本极少（有效新闻{retained_news_count}条），情绪判断仅供参考，建议结合技术面和财务面综合判断，不宜单独依赖情绪分析。"
+    },
+    {
+      "trigger": "T03",
+      "forced_text": "注意：净利润同比变化为正，但公司仍处于亏损状态，此处反映的是亏损收窄幅度，不代表公司已经盈利。"
+    },
+    {
+      "trigger": "T11",
+      "forced_text": "⚠️ 当前大盘处于系统性下跌（市场广度{market_breadth:.0%}），个股技术面分析参考价值有限，建议优先观察大盘企稳信号。"
+    }
+  ],
+
+  "dedup_output_rules": {
+    "description": "每次分析必须在报告中输出去重情况说明",
+    "format": "共获取{raw_news_count}条原始新闻，去重后保留{retained_news_count}条有效新闻（去重率{dedup_rate:.0%}）",
+    "note": "去重率超60%时额外输出：'大量重复转载，独立信息来源有限，情绪判断权重降低'"
+  },
+
+  "default_fallback": {
+    "condition": "无任何触发条件命中",
+    "handling": "使用附录情绪信号快速判断表作为基础框架，按sentiment_score正负输出基础情绪结论",
+    "note": "无特殊情绪信号时，情绪分析简短输出即可，不需要大篇幅展开"
+  },
+
+  "examples": [
+    {
+      "scenario": "贵州茅台高管被查案例",
+      "data": {
+        "sentiment_score": -68.0,
+        "sentiment_structure": "黑天鹅型",
+        "has_regulatory_news": true,
+        "has_policy_news": false,
+        "has_earnings_news": false,
+        "retained_news_count": 7,
+        "raw_news_count": 10,
+        "negative_days": 1,
+        "market_breadth": 0.45,
+        "days_since_event": 0
+      },
+      "triggered": ["T01(critical，黑天鹅警告)", "T06(medium，去重率30%未超阈值，不触发)", "T07(medium，情绪分-68<-60)"],
+      "not_triggered": ["T02", "T03", "T04", "T05", "T08", "T09", "T10", "T11", "T12"],
+      "note": "T01必须最先输出，T07提示极度悲观但需结合基本面判断"
+    },
+    {
+      "scenario": "正常市场情绪案例（无特殊信号）",
+      "data": {
+        "sentiment_score": -15.0,
+        "sentiment_structure": "无明显信号",
+        "has_regulatory_news": false,
+        "has_policy_news": false,
+        "has_earnings_news": false,
+        "retained_news_count": 5,
+        "raw_news_count": 8,
+        "negative_days": 0,
+        "market_breadth": 0.50,
+        "days_since_event": 0
+      },
+      "triggered": [],
+      "note": "无触发条件，走default_fallback，情绪分析简短输出"
+    },
+    {
+      "scenario": "大盘恐慌叠加政策利空",
+      "data": {
+        "sentiment_score": -55.0,
+        "sentiment_structure": "趋势型",
+        "has_regulatory_news": false,
+        "has_policy_news": true,
+        "has_earnings_news": false,
+        "retained_news_count": 6,
+        "raw_news_count": 9,
+        "negative_days": 5,
+        "market_breadth": 0.22,
+        "days_since_event": 0
+      },
+      "triggered": ["T02(high，趋势型利空)", "T04(medium，负面持续5天)", "T09(high，政策新闻)", "T11(high，大盘广度0.22<0.3)"],
+      "note": "T11大盘恐慌触发，个股技术面意义降低，需优先说明大盘风险"
+    }
+  ]
+}

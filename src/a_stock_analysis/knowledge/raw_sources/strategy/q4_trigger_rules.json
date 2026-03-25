@@ -1,0 +1,195 @@
+{
+  "_meta": {
+    "module": "Q4",
+    "description": "Q4投资评级的数据驱动检索映射表。Q4的输入是前三个模块的综合结论，不是原始数值，所以触发条件基于Q1/Q2/Q3的输出字段，而不是行情数据。",
+    "knowledge_file": "knowledge/raw_sources/strategy/q4_strategy_knowledge.md",
+    "input_fields": "q1_trend, q2_score, q2_stock_type, q3_sentiment, q3_structure, daily_change",
+    "version": "1.0"
+  },
+
+  "data_schema": {
+    "q1_trend": {
+      "type": "string",
+      "desc": "Q1均线趋势结论",
+      "values": ["多头排列", "强势整理", "空头排列", "死叉"]
+    },
+    "q2_score": {
+      "type": "int",
+      "desc": "Q2财务评分，盈利股0-100，亏损股0-75",
+      "example": 81
+    },
+    "q2_stock_type": {
+      "type": "string",
+      "desc": "Q2判断的股票类型",
+      "values": ["盈利股", "亏损股"]
+    },
+    "q3_sentiment": {
+      "type": "string",
+      "desc": "Q3综合情绪判断",
+      "values": ["看多", "观望", "看空"]
+    },
+    "q3_structure": {
+      "type": "string",
+      "desc": "Q3情绪结构类型",
+      "values": ["黑天鹅型", "趋势型", "博弈型", "钝化型", "无明显信号"]
+    },
+    "daily_change": {
+      "type": "float",
+      "desc": "当日涨跌幅，小数形式",
+      "example": -0.03
+    }
+  },
+
+  "triggers": [
+
+    {
+      "id": "T01",
+      "name": "三维共振买入信号",
+      "condition": "q1_trend in ['多头排列'] and q2_score >= 75 and q3_sentiment == '看多'",
+      "section": "§1 三维共振：最强买入信号",
+      "priority": "high",
+      "rating_hint": "买入",
+      "note": "技术/财务/情绪三个维度方向一致，是最高置信度的买入场景"
+    },
+
+    {
+      "id": "T02",
+      "name": "高基本面技术整理",
+      "condition": "q1_trend in ['强势整理'] and q2_score >= 75 and q3_sentiment in ['观望', '看多']",
+      "section": "§2 强势整理低吸：高基本面+技术回调",
+      "priority": "high",
+      "rating_hint": "分批低吸",
+      "note": "对应茅台案例，财务顶尖但技术在整理，需要分批策略和明确止损"
+    },
+
+    {
+      "id": "T03",
+      "name": "基本面财务情绪矛盾",
+      "condition": "q2_score >= 75 and q3_sentiment == '观望' and q3_structure == '黑天鹅型'",
+      "section": "§3 信号矛盾处理：财务好但情绪有黑天鹅",
+      "priority": "critical",
+      "rating_hint": "观望",
+      "note": "黑天鹅事件未明朗时，即使基本面好也不建议直接买入，需等待事件明朗"
+    },
+
+    {
+      "id": "T04",
+      "name": "技术空头财务优质",
+      "condition": "q1_trend in ['空头排列', '死叉'] and q2_score >= 75",
+      "section": "§4 技术与基本面背离：空头排列但财务优质",
+      "priority": "high",
+      "rating_hint": "观望",
+      "note": "好公司不等于好股票，技术面空头时不逆势建仓"
+    },
+
+    {
+      "id": "T05",
+      "name": "亏损股评级逻辑",
+      "condition": "q2_stock_type == '亏损股'",
+      "section": "§5 亏损股的评级框架",
+      "priority": "critical",
+      "rating_hint": "谨慎/回避",
+      "note": "亏损股评级逻辑与盈利股完全不同，必须切换分析框架"
+    },
+
+    {
+      "id": "T06",
+      "name": "低财务分数任何趋势",
+      "condition": "q2_score < 60",
+      "section": "§6 财务质量不达标：低分股的评级原则",
+      "priority": "high",
+      "rating_hint": "回避",
+      "note": "财务评分低于60分，无论技术面多好都不建议配置"
+    },
+
+    {
+      "id": "T07",
+      "name": "情绪钝化潜在底部",
+      "condition": "q3_structure == '钝化型' and q2_score >= 60",
+      "section": "§7 情绪钝化：负面消化后的底部识别",
+      "priority": "medium",
+      "rating_hint": "小仓位关注",
+      "note": "负面情绪持续发酵超3天后市场开始麻木，结合财务质量判断是否有反弹价值"
+    },
+
+    {
+      "id": "T08",
+      "name": "三维全空头",
+      "condition": "q1_trend in ['空头排列', '死叉'] and q2_score < 60 and q3_sentiment == '看空'",
+      "section": "§8 三维共振做空：最强回避信号",
+      "priority": "high",
+      "rating_hint": "回避",
+      "note": "技术/财务/情绪三个维度全部偏空，是最明确的回避场景"
+    },
+
+    {
+      "id": "T09",
+      "name": "单日异常波动",
+      "condition": "daily_change < -0.05 or daily_change > 0.05",
+      "section": "§9 异常波动日的评级处理",
+      "priority": "critical",
+      "rating_hint": "暂缓评级",
+      "note": "单日异常波动时，评级结论可靠性下降，需在报告中注明"
+    },
+
+    {
+      "id": "T10",
+      "name": "仓位管理通用触发",
+      "condition": "q1_trend in ['强势整理'] or q3_structure in ['黑天鹅型', '博弈型']",
+      "section": "§10 仓位管理：分批策略与止损纪律",
+      "priority": "medium",
+      "rating_hint": null,
+      "note": "不确定性高时，仓位管理知识必须注入，给出具体的分批比例和止损条件"
+    }
+
+  ],
+
+  "priority_rules": {
+    "critical": "必须在评级结论前输出风险提示，评级结论加注'存在重大不确定性'",
+    "high":     "优先检索，评级结论必须引用对应章节的判断框架",
+    "medium":   "按需检索，丰富分析深度"
+  },
+
+  "conflict_rules": [
+    {
+      "conflict": "T02（分批低吸）与 T03（黑天鹅观望）同时触发",
+      "handling": "T03优先，评级给观望而非分批低吸，在报告中说明：虽然财务和技术支持低吸，但黑天鹅事件未明朗前不建议建仓，等待事件明朗后再评估",
+      "note": "对应茅台高管留置案例"
+    },
+    {
+      "conflict": "T01（三维共振买入）与 T09（异常波动）同时触发",
+      "handling": "T09优先，评级降为'观望-等待确认'，注明异常波动日信号可靠性下降"
+    },
+    {
+      "conflict": "T04（技术空头）与 T07（情绪钝化）同时触发",
+      "handling": "两个章节都检索，在报告中说明：情绪钝化是潜在底部信号，但技术面空头排列未转多之前不建议建仓，等待技术确认"
+    }
+  ],
+
+  "rating_definitions": {
+    "买入":     "三维信号共振向上，可正常仓位建仓",
+    "分批低吸": "基本面支撑但存在不确定性，建议第一批不超过30%仓位，设好止损",
+    "持有":     "已持仓者继续持有，未持仓者等待更好入场点",
+    "观望":     "信号不明确或存在重大风险事件，空仓等待",
+    "回避":     "财务或技术存在明显问题，不建议参与",
+    "暂缓评级": "异常波动日，当前数据不足以支撑可靠评级"
+  },
+
+  "examples": [
+    {
+      "scenario": "茅台高管被查案例",
+      "data": {
+        "q1_trend": "强势整理",
+        "q2_score": 81,
+        "q2_stock_type": "盈利股",
+        "q3_sentiment": "观望",
+        "q3_structure": "黑天鹅型",
+        "daily_change": -0.03
+      },
+      "triggered": ["T02（强势整理低吸）", "T03（黑天鹅观望，critical优先）", "T10（仓位管理）"],
+      "conflict": "T02与T03冲突，T03优先",
+      "final_rating": "观望",
+      "reasoning": "虽然T02支持分批低吸，但T03黑天鹅事件未明朗，冲突规则要求T03优先，评级给观望"
+    }
+  ]
+}

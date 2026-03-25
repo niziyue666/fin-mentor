@@ -1,0 +1,279 @@
+{
+  "_meta": {
+    "module": "Q2",
+    "description": "Q2财务健康度分析的数据驱动检索映射表。Agent获取财务数据后，遍历triggers数组，满足condition的规则全部触发，将对应section传入Markdown知识库检索。",
+    "knowledge_file": "knowledge/raw_sources/financial/q2_financial_knowledge.md",
+    "usage": "用Python eval()执行condition，data字典需包含以下字段（见data_schema）",
+    "version": "1.0"
+  },
+
+  "data_schema": {
+    "net_profit":            { "type": "float", "desc": "净利润，负数为亏损",               "example": -5200000 },
+    "net_profit_last_q":     { "type": "float", "desc": "上季度净利润",                    "example": 8600000 },
+    "consecutive_loss_q":    { "type": "int",   "desc": "连续亏损季度数",                  "example": 3 },
+    "net_profit_yoy":        { "type": "float", "desc": "净利润同比变化率，小数形式",       "example": 0.481 },
+    "debt_ratio":            { "type": "float", "desc": "资产负债率，小数形式",             "example": 0.6972 },
+    "pe_ttm":                { "type": "float", "desc": "PE(TTM)，亏损时为None",           "example": null },
+    "pe_percentile_3y":      { "type": "float", "desc": "PE近3年历史分位，0-1",            "example": 0.25 },
+    "pb":                    { "type": "float", "desc": "市净率PB",                        "example": 7.04 },
+    "roe":                   { "type": "float", "desc": "净资产收益率，小数形式",           "example": 0.2637 },
+    "revenue_growth":        { "type": "float", "desc": "营收同比增速，小数形式",           "example": -0.032 },
+    "revenue_growth_q_list": { "type": "list",  "desc": "最近3个季度营收增速列表，从旧到新", "example": [0.15, 0.08, 0.036] },
+    "receivable_ratio":      { "type": "float", "desc": "应收账款/营收，小数形式",          "example": 0.55 },
+    "cfo_to_net_profit":     { "type": "float", "desc": "经营现金流/净利润",               "example": 0.57 },
+    "net_profit_qoq":        { "type": "float", "desc": "净利润环比变化率，小数形式",       "example": 0.437 },
+    "gross_margin":          { "type": "float", "desc": "毛利率，小数形式",                "example": 0.9129 }
+  },
+
+  "triggers": [
+
+    {
+      "id": "T01",
+      "name": "持续亏损股",
+      "condition": "net_profit < 0 and consecutive_loss_q >= 2",
+      "section": "§1 亏损股分析框架",
+      "priority": "critical",
+      "note": "触发时切换亏损股分析模板，财务评分满分上限锁定75分，PE字段禁止展示"
+    },
+
+    {
+      "id": "T02",
+      "name": "单季亏损",
+      "condition": "net_profit < 0 and net_profit_last_q > 0",
+      "section": "§2 单季亏损判断",
+      "priority": "high",
+      "note": "上季度盈利本季亏损，需判断是季节性/一次性还是趋势转坏"
+    },
+
+    {
+      "id": "T03",
+      "name": "减亏非盈利",
+      "condition": "net_profit < 0 and net_profit_yoy > 0",
+      "section": "§3 减亏与盈利的区别",
+      "priority": "high",
+      "note": "净利同比为正但绝对值仍为负，必须强制标注'减亏幅度'而非'净利润增长'，禁止误导性表述"
+    },
+
+    {
+      "id": "T04",
+      "name": "高负债危险线",
+      "condition": "debt_ratio > 0.70",
+      "section": "§4 高负债企业风险识别",
+      "priority": "critical",
+      "note": "触发后财务评分总分上限锁定60分，报告必须输出高负债风险警告"
+    },
+
+    {
+      "id": "T05",
+      "name": "负债偏高",
+      "condition": "debt_ratio > 0.50 and debt_ratio <= 0.70",
+      "section": "§5 负债偏高的偿债能力分析",
+      "priority": "medium",
+      "note": "需进一步分析债务结构（流动比率、有息负债占比）"
+    },
+
+    {
+      "id": "T06",
+      "name": "高估值泡沫",
+      "condition": "pe_percentile_3y is not None and pe_percentile_3y > 0.80",
+      "section": "§6 高估值泡沫风险判断",
+      "priority": "high",
+      "note": "PE处于历史80%分位以上，重点看PEG判断增速是否支撑估值"
+    },
+
+    {
+      "id": "T07",
+      "name": "低估值价值陷阱",
+      "condition": "pe_percentile_3y is not None and pe_percentile_3y < 0.20",
+      "section": "§7 低估值价值陷阱识别",
+      "priority": "medium",
+      "note": "PE处于历史低位，需判断是真便宜还是基本面恶化导致的价值陷阱"
+    },
+
+    {
+      "id": "T08",
+      "name": "PE失效切换PS",
+      "condition": "pe_ttm is None or net_profit < 0",
+      "section": "§8 亏损股估值方法（PS替代PE）",
+      "priority": "critical",
+      "note": "PE失效时禁止展示PE，强制切换PS估值，并在报告中说明原因和行业PS均值"
+    },
+
+    {
+      "id": "T09",
+      "name": "高PB低ROE不匹配",
+      "condition": "pb > 3 and roe < 0.10",
+      "section": "§9 高PB低ROE估值不匹配",
+      "priority": "high",
+      "note": "估值溢价与盈利能力不匹配，需说明市场是否有增长预期支撑"
+    },
+
+    {
+      "id": "T10",
+      "name": "高PB被高ROE支撑",
+      "condition": "pb > 0 and roe > 0 and (roe / pb) >= 3",
+      "section": "§10 高PB被高ROE支撑的判断",
+      "priority": "medium",
+      "note": "PB虽高但ROE足够强，溢价合理，需在报告中解释ROE/PB逻辑"
+    },
+
+    {
+      "id": "T11",
+      "name": "营收负增长",
+      "condition": "revenue_growth < 0",
+      "section": "§11 营收负增长衰退期分析",
+      "priority": "high",
+      "note": "营收下滑是比利润下滑更根本的问题，需警告初学者不要被利润增长迷惑"
+    },
+
+    {
+      "id": "T12",
+      "name": "营收增速连续下滑",
+      "condition": "len(revenue_growth_q_list) >= 3 and revenue_growth_q_list[-1] < revenue_growth_q_list[-2] < revenue_growth_q_list[-3]",
+      "section": "§12 成长瓶颈期企业分析",
+      "priority": "medium",
+      "note": "连续3季度营收增速递减，需判断是暂时性放缓还是长期瓶颈"
+    },
+
+    {
+      "id": "T13",
+      "name": "应收账款风险",
+      "condition": "receivable_ratio > 0.50",
+      "section": "§13 应收账款风险识别",
+      "priority": "high",
+      "note": "应收账款超过营收50%，坏账风险和回款周期风险需重点提示"
+    },
+
+    {
+      "id": "T14",
+      "name": "利润质量偏低",
+      "condition": "cfo_to_net_profit is not None and net_profit > 0 and cfo_to_net_profit < 0.80",
+      "section": "§14 利润质量验证",
+      "priority": "high",
+      "note": "经营现金流/净利润低于80%，大量利润未转化为现金，需验证利润质量"
+    },
+
+    {
+      "id": "T15",
+      "name": "单季利润异常波动",
+      "condition": "abs(net_profit_qoq) > 0.30",
+      "section": "§15 单季利润异常波动",
+      "priority": "medium",
+      "note": "环比波动超30%，需结合公告判断是季节性/一次性原因还是趋势变化"
+    }
+
+  ],
+
+  "priority_rules": {
+    "critical": "强制改变报告结构或评分上限，必须在报告显眼位置输出警告或说明",
+    "high":     "优先检索，分析对应指标时必须引用知识库内容，不能跳过",
+    "medium":   "按需检索，丰富分析深度，无强制要求"
+  },
+
+  "score_cap_rules": [
+    {
+      "condition": "T01触发（连续亏损≥2季度）",
+      "score_cap": 75,
+      "reason": "亏损本身是重大减分项，即使其他指标良好也不超过75分"
+    },
+    {
+      "condition": "T04触发（资产负债率>70%）",
+      "score_cap": 60,
+      "reason": "高负债是硬伤，锁定总分上限60分"
+    },
+    {
+      "condition": "T01和T04同时触发",
+      "score_cap": 50,
+      "reason": "亏损+高负债双重风险，上限进一步压低"
+    }
+  ],
+
+  "conflict_rules": [
+    {
+      "conflict": "T03（减亏）与T01（持续亏损）同时触发",
+      "handling": "两个章节都检索，明确说明：亏损在收窄是改善信号，但公司仍处于亏损状态，不能按盈利股逻辑分析"
+    },
+    {
+      "conflict": "T06（高估值）与T10（高PB被ROE支撑）同时触发",
+      "handling": "优先看ROE/PB比值，若≥3则T10优先，估值溢价合理；若<3则T06优先，需警示泡沫风险"
+    },
+    {
+      "conflict": "T07（低估值）与T11（营收负增长）同时触发",
+      "handling": "两个章节都检索，在报告中明确说明：低PE可能是价值陷阱而非真便宜，需结合营收趋势判断"
+    },
+    {
+      "conflict": "T08（PE失效）与T06/T07（估值判断）同时触发",
+      "handling": "T08优先，PE相关估值判断全部失效，切换为PS估值，T06/T07不输出"
+    }
+  ],
+
+  "default_fallback": {
+    "condition": "无任何触发条件命中",
+    "handling": "使用附录中的财务指标正常区间速查表作为基础分析框架",
+    "note": "正常盈利股无特殊风险点时，直接按标准盈利股模板输出"
+  },
+
+  "forced_output_rules": [
+    {
+      "trigger": "T01或T08",
+      "forced_text": "⚠️ 当前公司处于亏损状态，PE指标失效，以下分析切换为亏损股评估框架，重点关注现金储备和亏损收窄速度。"
+    },
+    {
+      "trigger": "T03",
+      "forced_text": "注意：净利润同比变化为正，但公司仍处于亏损状态，此处反映的是亏损收窄幅度，不代表公司已经盈利。"
+    },
+    {
+      "trigger": "T04",
+      "forced_text": "⚠️ 资产负债率超过70%，财务风险较高。即使其他指标表现良好，高负债显著压缩了公司的容错空间，综合评分上限锁定60分。"
+    }
+  ],
+
+  "examples": [
+    {
+      "scenario": "常山北明案例（软件亏损股）",
+      "data": {
+        "net_profit": -51000000,
+        "net_profit_last_q": 30000000,
+        "consecutive_loss_q": 3,
+        "net_profit_yoy": 0.481,
+        "debt_ratio": 0.6972,
+        "pe_ttm": null,
+        "pe_percentile_3y": null,
+        "pb": 5.66,
+        "roe": -0.0293,
+        "revenue_growth": 0.036,
+        "revenue_growth_q_list": [0.08, 0.05, 0.036],
+        "receivable_ratio": 0.58,
+        "cfo_to_net_profit": null,
+        "net_profit_qoq": 0.377,
+        "gross_margin": 0.1112
+      },
+      "triggered": ["T01(critical)", "T03(high)", "T04(critical)", "T05已被T04覆盖", "T08(critical)", "T12(medium)", "T13(high)"],
+      "score_cap": 50,
+      "note": "T01+T04同时触发，评分上限压至50分"
+    },
+    {
+      "scenario": "贵州茅台案例（优质盈利股）",
+      "data": {
+        "net_profit": 66900000000,
+        "net_profit_last_q": 46600000000,
+        "consecutive_loss_q": 0,
+        "net_profit_yoy": 0.062,
+        "debt_ratio": 0.1281,
+        "pe_ttm": 20.4,
+        "pe_percentile_3y": 0.13,
+        "pb": 7.04,
+        "roe": 0.2637,
+        "revenue_growth": 0.064,
+        "revenue_growth_q_list": [0.12, 0.09, 0.064],
+        "receivable_ratio": 0.05,
+        "cfo_to_net_profit": 0.57,
+        "net_profit_qoq": 0.437,
+        "gross_margin": 0.9129
+      },
+      "triggered": ["T07(medium，PE历史低位)", "T10(medium，ROE/PB=3.7支撑高PB)", "T12(medium，营收增速连续下滑)", "T14(high，现金流/净利润=0.57<0.8)", "T15(medium，环比+43.7%)"],
+      "score_cap": 100,
+      "note": "无critical触发，满分100分上限，实际得78分"
+    }
+  ]
+}
