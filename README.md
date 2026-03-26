@@ -1,6 +1,6 @@
 # 🤖 Fin-Mentor Pro
 
-> 基于 CrewAI 的 A 股智能投资分析系统
+> 基于 CrewAI 的 A 股智能投资教学分析系统
 
 ---
 
@@ -11,7 +11,7 @@
 | 🤖 多智能体协作 | 5 个 AI Agent：市场分析师 → 财务分析师 → 情绪分析师 → 投资顾问 → 追问导师 |
 | 📊 四象限仪表盘 | Q1 技术面 · Q2 财务面 · Q3 情绪面 · Q4 投资建议 |
 | 📈 实时数据 | A 股实时行情（tinyshare + akshare-one） |
-| 📚 RAG 知识库 | 根据数据特征触发相关知识，分析更精准 |
+| 📚 RAG 向量检索 | Chroma 向量库 + 数据驱动触发机制，精准检索投资知识 |
 | 💬 追问系统 | 直接传递报告内容给 AI，支持深入追问 |
 
 ---
@@ -61,8 +61,9 @@ stock_analysis_a_stock/
     │   ├── market_sentiment_tool.py # 情绪分析（资金流向、新闻）
     │   ├── knowledge_tool.py        # RAG 知识库检索
     │   └── calculator_tool.py       # 安全计算
-    └── knowledge/
-        └── raw_sources/      # RAG 知识文档
+    └── knowledge/               # 知识库模块
+        ├── rag_engine.py        # RAG 检索引擎
+        └── raw_sources/         # 原始知识文档（trigger规则 + 教学内容）
 ```
 
 ---
