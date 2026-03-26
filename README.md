@@ -27,7 +27,7 @@
 ---
 
 ## 📹 演示视频
-<video src="https://github.com/user-attachments/assets/14552365-f22b-4d1a-bec3-4aeb52157f60" controls width="100%"></video>
+<video src="https://github.com/user-attachments/assets/370805c2-a492-47c7-a603-dfafe21d2744" controls width="100%"></video>
 
 ---
 
