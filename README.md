@@ -28,7 +28,7 @@
 
 ## 📹 演示视频
 
-[点击查看演示视频](assets/demo.mp4)
+[点击查看演示视频]https://github.com/user-attachments/assets/05eb3cd6-2ba6-40c3-a6a4-021305dfe6c4
 
 ---
 
